@@ -1,0 +1,802 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <title>Daily Log</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0f1117;
+      --surface:   #1a1d27;
+      --border:    #2a2d3a;
+      --text:      #e8eaf0;
+      --muted:     #666b80;
+      --accent:    #5b6af0;
+      --accent-lt: #7b8af8;
+      --done:      #34c77b;
+      --fail:      #e05555;
+      --daily:     #f0a03a;
+      --weekly:    #5b6af0;
+      --radius:    14px;
+      --radius-sm: 8px;
+    }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      font-family: 'DM Sans', sans-serif;
+      color: var(--text);
+      overscroll-behavior: none;
+    }
+
+    #app {
+      display: flex;
+      flex-direction: column;
+      height: 100dvh;
+      max-width: 480px;
+      margin: 0 auto;
+    }
+
+    /* ── Header ── */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 20px 10px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .app-title {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.8rem;
+      color: var(--muted);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .build-stamp {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.62rem;
+      color: var(--border);
+    }
+
+    /* ── Screens ── */
+    .screen {
+      display: none;
+      flex-direction: column;
+      flex: 1;
+      overflow: hidden;
+    }
+    .screen.active { display: flex; }
+
+    /* ══════════════════════════════
+       SELECTOR SCREEN
+    ══════════════════════════════ */
+    #screen-select {
+      padding: 0 24px 32px;
+      justify-content: space-between;
+    }
+
+    /* Date hero */
+    .date-hero {
+      padding: 28px 0 20px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 28px;
+    }
+    .date-hero .day-name {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.72rem;
+      color: var(--muted);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+    .date-hero .date-display {
+      font-size: 2.6rem;
+      font-weight: 700;
+      line-height: 1;
+      letter-spacing: -0.02em;
+      color: var(--text);
+    }
+    .date-hero .date-display span {
+      color: var(--accent-lt);
+    }
+
+    /* Section labels */
+    .section-label {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.68rem;
+      color: var(--muted);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+
+    /* Toggle group */
+    .toggle-group {
+      display: grid;
+      gap: 10px;
+      margin-bottom: 28px;
+    }
+    .toggle-group.cols-2 { grid-template-columns: 1fr 1fr; }
+    .toggle-group.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
+
+    .tog-btn {
+      background: var(--surface);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--muted);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.95rem;
+      font-weight: 500;
+      padding: 14px 10px;
+      cursor: pointer;
+      transition: all 0.15s;
+      text-align: center;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .tog-btn:active { opacity: 0.7; transform: scale(0.97); }
+
+    .tog-btn.active-daily {
+      background: rgba(240, 160, 58, 0.12);
+      border-color: var(--daily);
+      color: var(--daily);
+    }
+    .tog-btn.active-weekly {
+      background: rgba(91, 106, 240, 0.12);
+      border-color: var(--accent);
+      color: var(--accent-lt);
+    }
+    .tog-btn.active-date {
+      background: rgba(91, 106, 240, 0.08);
+      border-color: var(--accent);
+      color: var(--text);
+    }
+
+    /* Date picker */
+    #date-picker-wrap {
+      margin-bottom: 28px;
+      display: none;
+    }
+    #date-picker-wrap.visible { display: block; }
+    #date-picker {
+      width: 100%;
+      background: var(--surface);
+      border: 1.5px solid var(--accent);
+      border-radius: var(--radius);
+      color: var(--text);
+      font-family: 'DM Mono', monospace;
+      font-size: 1rem;
+      padding: 13px 16px;
+      outline: none;
+      -webkit-appearance: none;
+    }
+    #date-picker::-webkit-calendar-picker-indicator {
+      filter: invert(0.6);
+    }
+
+    /* Capture button */
+    #capture-btn {
+      width: 100%;
+      padding: 18px;
+      border-radius: var(--radius);
+      border: none;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 1.1rem;
+      font-weight: 700;
+      cursor: pointer;
+      letter-spacing: 0.01em;
+      transition: opacity 0.15s, transform 0.1s;
+      -webkit-tap-highlight-color: transparent;
+      margin-top: auto;
+    }
+    #capture-btn.daily-mode {
+      background: var(--daily);
+      color: #0f1117;
+    }
+    #capture-btn.weekly-mode {
+      background: var(--accent);
+      color: #fff;
+    }
+    #capture-btn:active { opacity: 0.85; transform: scale(0.98); }
+
+    /* ══════════════════════════════
+       CAMERA SCREEN
+    ══════════════════════════════ */
+    #screen-camera {
+      position: relative;
+      background: #000;
+    }
+
+    #video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    #canvas { display: none; }
+
+    /* Viewfinder */
+    .viewfinder {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .viewfinder-box {
+      width: 88%;
+      aspect-ratio: 2/1.3;
+      border: 2px solid rgba(255,255,255,0.6);
+      border-radius: 10px;
+      box-shadow: 0 0 0 2000px rgba(0,0,0,0.38);
+    }
+
+    /* Camera status */
+    #cam-status {
+      position: absolute;
+      bottom: 110px;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 9px 22px;
+      border-radius: 30px;
+      font-size: 0.88rem;
+      font-weight: 500;
+      white-space: nowrap;
+      opacity: 0;
+      transition: opacity 0.2s;
+      pointer-events: none;
+      text-align: center;
+      max-width: 88%;
+      white-space: normal;
+    }
+    #cam-status.show { opacity: 1; }
+    #cam-status.working { background: rgba(0,0,0,0.75); color: #fff; }
+    #cam-status.success { background: var(--done); color: #fff; }
+    #cam-status.error   { background: var(--fail); color: #fff; }
+
+    /* Camera context strip */
+    #cam-context {
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      padding: 14px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: linear-gradient(to bottom, rgba(0,0,0,0.6), transparent);
+    }
+    #cam-context .ctx-type {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.75rem;
+      font-weight: 500;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 5px 12px;
+      border-radius: 20px;
+    }
+    #cam-context .ctx-type.daily  { background: var(--daily); color: #0f1117; }
+    #cam-context .ctx-type.weekly { background: var(--accent); color: #fff; }
+    #cam-context .ctx-date {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.78rem;
+      color: rgba(255,255,255,0.8);
+    }
+
+    /* Back button */
+    #back-btn {
+      position: absolute;
+      bottom: 28px;
+      left: 28px;
+      width: 52px;
+      height: 52px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.15);
+      border: none;
+      color: white;
+      font-size: 1.3rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    /* Shutter button */
+    #shutter-btn {
+      position: absolute;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 72px;
+      height: 72px;
+      border-radius: 50%;
+      border: 4px solid rgba(255,255,255,0.85);
+      background: rgba(255,255,255,0.18);
+      cursor: pointer;
+      transition: background 0.15s, transform 0.1s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    #shutter-btn:active { background: rgba(255,255,255,0.4); transform: translateX(-50%) scale(0.93); }
+    #shutter-btn.busy { opacity: 0.4; pointer-events: none; }
+
+    /* Camera error */
+    #cam-error {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      height: 100%;
+      padding: 32px;
+      text-align: center;
+    }
+    #cam-error.show { display: flex; }
+    #cam-error p { color: var(--muted); font-size: 0.95rem; line-height: 1.5; }
+    #cam-error button {
+      padding: 12px 28px;
+      background: var(--accent);
+      color: white;
+      border: none;
+      border-radius: var(--radius);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.95rem;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+<div id="app">
+
+  <header>
+    <span class="app-title">Daily Log</span>
+    <span class="build-stamp">Built 2025-06-29 01:00</span>
+  </header>
+
+  <!-- ── SELECTOR SCREEN ── -->
+  <div id="screen-select" class="screen active">
+
+    <div>
+      <div class="date-hero">
+        <div class="day-name" id="hero-day">Sunday</div>
+        <div class="date-display" id="hero-date">Jun <span>29</span></div>
+      </div>
+
+      <div class="section-label">Chart type</div>
+      <div class="toggle-group cols-2" style="margin-bottom:28px">
+        <button class="tog-btn active-daily" id="btn-daily" onclick="selectType('daily')">Daily</button>
+        <button class="tog-btn" id="btn-weekly" onclick="selectType('weekly')">Weekly</button>
+      </div>
+
+      <div class="section-label">Date</div>
+      <div class="toggle-group cols-3">
+        <button class="tog-btn active-date" id="btn-today" onclick="selectWhen('today')">Today</button>
+        <button class="tog-btn" id="btn-yesterday" onclick="selectWhen('yesterday')">Yesterday</button>
+        <button class="tog-btn" id="btn-pick" onclick="selectWhen('pick')">Pick…</button>
+      </div>
+
+      <div id="date-picker-wrap">
+        <input type="date" id="date-picker" onchange="onDatePick()" />
+      </div>
+    </div>
+
+    <button id="capture-btn" class="daily-mode" onclick="openCamera()">
+      Scan Daily Chart →
+    </button>
+
+  </div>
+
+  <!-- ── CAMERA SCREEN ── -->
+  <div id="screen-camera" class="screen">
+
+    <video id="video" autoplay playsinline muted></video>
+    <canvas id="canvas"></canvas>
+
+    <div class="viewfinder">
+      <div class="viewfinder-box"></div>
+    </div>
+
+    <div id="cam-context">
+      <span class="ctx-type daily" id="ctx-type-badge">DAILY</span>
+      <span class="ctx-date" id="ctx-date-label"></span>
+    </div>
+
+    <div id="cam-status"></div>
+
+    <button id="back-btn" onclick="goBack()">←</button>
+    <button id="shutter-btn" onclick="capture()"></button>
+
+    <div id="cam-error">
+      <p>Camera access was denied. Please allow camera permission and try again.</p>
+      <button onclick="startCamera()">Try Again</button>
+    </div>
+
+  </div>
+
+</div>
+
+<script>
+// ─────────────────────────────────────────────
+//  CONFIG
+// ─────────────────────────────────────────────
+const CONFIG = {
+  WORKER_URL: 'YOUR_CLOUDFLARE_WORKER_URL',
+  SHEET_ID:   'YOUR_GOOGLE_SHEET_ID',
+  SERVICE_ACCOUNT: {
+    client_email: 'YOUR_SERVICE_ACCOUNT_EMAIL',
+    private_key:  'YOUR_PRIVATE_KEY',
+  }
+};
+
+// ─────────────────────────────────────────────
+//  CHORE DEFINITIONS
+// ─────────────────────────────────────────────
+const DAILY_CHORES = [
+  'Pills AM/Fulvic',
+  'Teeth',
+  'Pills Midday',
+  'Ruck/Gym',
+  'Cleanup 15 min',
+  'Project',
+  'Pills Evening',
+  'Plan/Retro',
+];
+
+const WEEKLY_CHORES = [
+  'Fam Read 1',
+  'Fam Read 2',
+  'Fam Read 3',
+  'Fam Read 4',
+  'Barndo 4 Hours',
+  'Personal Bible',
+  'Reading',
+  'Garbage',
+  'Plan Week',
+  'Date Night',
+];
+
+// Sheet column order: Date, Type, then all daily chores, then all weekly chores
+const ALL_CHORES = [...DAILY_CHORES, ...WEEKLY_CHORES];
+
+// ─────────────────────────────────────────────
+//  STATE
+// ─────────────────────────────────────────────
+let chartType = 'daily';   // 'daily' | 'weekly'
+let whenMode  = 'today';   // 'today' | 'yesterday' | 'pick'
+let pickedDate = null;      // Date object when mode is 'pick'
+let stream = null;
+
+// ─────────────────────────────────────────────
+//  DATE HELPERS
+// ─────────────────────────────────────────────
+function todayDate() {
+  return new Date();
+}
+
+function yesterdayDate() {
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
+  return d;
+}
+
+function resolvedDate() {
+  if (whenMode === 'today')     return todayDate();
+  if (whenMode === 'yesterday') return yesterdayDate();
+  return pickedDate || todayDate();
+}
+
+function formatISO(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function formatHero(d) {
+  const days   = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return {
+    day:   days[d.getDay()],
+    month: months[d.getMonth()],
+    date:  d.getDate(),
+  };
+}
+
+function formatPickerValue(d) {
+  return formatISO(d);
+}
+
+function updateHero() {
+  const d = resolvedDate();
+  const h = formatHero(d);
+  document.getElementById('hero-day').textContent  = h.day;
+  document.getElementById('hero-date').innerHTML   = `${h.month} <span>${h.date}</span>`;
+}
+
+// ─────────────────────────────────────────────
+//  SELECTOR LOGIC
+// ─────────────────────────────────────────────
+function selectType(type) {
+  chartType = type;
+
+  const btnD = document.getElementById('btn-daily');
+  const btnW = document.getElementById('btn-weekly');
+  const capBtn = document.getElementById('capture-btn');
+
+  btnD.className = 'tog-btn' + (type === 'daily'  ? ' active-daily'  : '');
+  btnW.className = 'tog-btn' + (type === 'weekly' ? ' active-weekly' : '');
+
+  if (type === 'daily') {
+    capBtn.className = 'daily-mode';
+    capBtn.textContent = 'Scan Daily Chart →';
+  } else {
+    capBtn.className = 'weekly-mode';
+    capBtn.textContent = 'Scan Weekly Chart →';
+  }
+}
+
+function selectWhen(mode) {
+  whenMode = mode;
+
+  document.getElementById('btn-today').className     = 'tog-btn' + (mode === 'today'     ? ' active-date' : '');
+  document.getElementById('btn-yesterday').className = 'tog-btn' + (mode === 'yesterday' ? ' active-date' : '');
+  document.getElementById('btn-pick').className      = 'tog-btn' + (mode === 'pick'      ? ' active-date' : '');
+
+  const wrap = document.getElementById('date-picker-wrap');
+  if (mode === 'pick') {
+    wrap.classList.add('visible');
+    const picker = document.getElementById('date-picker');
+    if (!picker.value) {
+      picker.value = formatPickerValue(todayDate());
+      pickedDate = todayDate();
+    }
+  } else {
+    wrap.classList.remove('visible');
+    pickedDate = null;
+  }
+
+  updateHero();
+}
+
+function onDatePick() {
+  const val = document.getElementById('date-picker').value; // YYYY-MM-DD
+  if (val) {
+    const [y, m, d] = val.split('-').map(Number);
+    pickedDate = new Date(y, m - 1, d);
+    updateHero();
+  }
+}
+
+// Init hero
+updateHero();
+
+// ─────────────────────────────────────────────
+//  CAMERA
+// ─────────────────────────────────────────────
+async function openCamera() {
+  showScreen('camera');
+
+  // Update context strip
+  const badge = document.getElementById('ctx-type-badge');
+  badge.textContent = chartType.toUpperCase();
+  badge.className   = `ctx-type ${chartType}`;
+  document.getElementById('ctx-date-label').textContent = formatISO(resolvedDate());
+
+  await startCamera();
+}
+
+async function startCamera() {
+  document.getElementById('cam-error').classList.remove('show');
+  try {
+    if (stream) { stream.getTracks().forEach(t => t.stop()); }
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } },
+      audio: false
+    });
+    document.getElementById('video').srcObject = stream;
+  } catch (e) {
+    document.getElementById('cam-error').classList.add('show');
+  }
+}
+
+function goBack() {
+  if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+  showScreen('select');
+}
+
+// ─────────────────────────────────────────────
+//  CAPTURE & PROCESS
+// ─────────────────────────────────────────────
+async function capture() {
+  const shutter = document.getElementById('shutter-btn');
+  shutter.classList.add('busy');
+  showCamStatus('Reading chart…', 'working');
+
+  const video  = document.getElementById('video');
+  const canvas = document.getElementById('canvas');
+  canvas.width  = video.videoWidth;
+  canvas.height = video.videoHeight;
+  canvas.getContext('2d').drawImage(video, 0, 0);
+  const base64 = canvas.toDataURL('image/jpeg', 0.88).split(',')[1];
+
+  try {
+    const chores  = chartType === 'daily' ? DAILY_CHORES : WEEKLY_CHORES;
+    const results = await readChoreChart(base64, chartType, chores);
+    await writeToSheet(formatISO(resolvedDate()), chartType, results);
+    showCamStatus(`✓ Saved — ${formatISO(resolvedDate())}`, 'success', 2000);
+    setTimeout(() => goBack(), 2100);
+  } catch (e) {
+    console.error(e);
+    showCamStatus(e.message || 'Something went wrong. Try again.', 'error', 3500);
+  } finally {
+    shutter.classList.remove('busy');
+  }
+}
+
+// ─────────────────────────────────────────────
+//  ANTHROPIC OCR
+// ─────────────────────────────────────────────
+async function readChoreChart(base64, type, chores) {
+  const choreList = chores.map((c, i) => `${i + 1}. ${c}`).join('\n');
+
+  const prompt = `This is a photo of a ${type} chore chart. The chart has chores as columns and dates as rows.
+Look at the BOTTOM-MOST row that has any marks in it. That is today's row.
+For each chore column, determine if the mark is a checkmark (done) or an X (not done), or blank (no mark).
+
+The chores in this chart are:
+${choreList}
+
+Return ONLY a raw JSON object. Keys are the exact chore names listed above. Values are:
+- 1 if there is a checkmark (done)
+- 0 if there is an X or the cell is blank/unmarked
+
+No explanation, no markdown, no backticks. Only the JSON object.
+Example: {"Pills AM/Fulvic":1,"Teeth":0,"Pills Midday":1}`;
+
+  const response = await fetch(CONFIG.WORKER_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 512,
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: base64 } },
+          { type: 'text', text: prompt }
+        ]
+      }]
+    })
+  });
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(`API error ${response.status}: ${err.error?.message || 'unknown'}`);
+  }
+
+  const data = await response.json();
+  const text = data.content?.find(b => b.type === 'text')?.text?.trim() || '';
+
+  try {
+    const clean = text.replace(/```json|```/g, '').trim();
+    return JSON.parse(clean);
+  } catch {
+    throw new Error('Could not read chart. Try a clearer photo.');
+  }
+}
+
+// ─────────────────────────────────────────────
+//  GOOGLE SHEETS
+// ─────────────────────────────────────────────
+async function writeToSheet(dateStr, type, results) {
+  const token = await getGoogleAccessToken();
+
+  // Build row: Date, Type, then all daily chores, then all weekly chores
+  const row = [dateStr, type === 'daily' ? 'Daily' : 'Weekly'];
+
+  for (const chore of ALL_CHORES) {
+    if (results.hasOwnProperty(chore)) {
+      row.push(results[chore]);
+    } else {
+      row.push('');
+    }
+  }
+
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${CONFIG.SHEET_ID}/values/A1:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`;
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ values: [row] })
+  });
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(`Sheet error: ${err.error?.message || response.status}`);
+  }
+}
+
+// ─────────────────────────────────────────────
+//  GOOGLE AUTH (standard — do not modify)
+// ─────────────────────────────────────────────
+async function getGoogleAccessToken() {
+  const now   = Math.floor(Date.now() / 1000);
+  const claim = {
+    iss:   CONFIG.SERVICE_ACCOUNT.client_email,
+    scope: 'https://www.googleapis.com/auth/spreadsheets',
+    aud:   'https://oauth2.googleapis.com/token',
+    exp:   now + 3600,
+    iat:   now
+  };
+  const jwt  = await makeJWT(claim, CONFIG.SERVICE_ACCOUNT.private_key);
+  const resp = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+      assertion:  jwt
+    })
+  });
+  if (!resp.ok) throw new Error('Google auth failed. Check service account credentials.');
+  return (await resp.json()).access_token;
+}
+
+async function makeJWT(claim, pemKey) {
+  const header  = b64url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
+  const payload = b64url(JSON.stringify(claim));
+  const signing = `${header}.${payload}`;
+  const key     = await importPrivateKey(pemKey);
+  const sig     = await crypto.subtle.sign('RSASSA-PKCS1-v1_5', key, new TextEncoder().encode(signing));
+  return `${signing}.${b64url(sig)}`;
+}
+
+function b64url(data) {
+  if (typeof data === 'string') data = new TextEncoder().encode(data);
+  const bytes = data instanceof ArrayBuffer ? new Uint8Array(data) : data;
+  return btoa(String.fromCharCode(...bytes))
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+async function importPrivateKey(pem) {
+  const stripped = pem
+    .replace(/-----BEGIN PRIVATE KEY-----/, '')
+    .replace(/-----END PRIVATE KEY-----/, '')
+    .replace(/\s+/g, '');
+  const binary = Uint8Array.from(atob(stripped), c => c.charCodeAt(0));
+  return crypto.subtle.importKey(
+    'pkcs8', binary.buffer,
+    { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
+    false, ['sign']
+  );
+}
+
+// ─────────────────────────────────────────────
+//  UI HELPERS
+// ─────────────────────────────────────────────
+function showScreen(name) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(`screen-${name}`).classList.add('active');
+}
+
+let statusTimer = null;
+function showCamStatus(msg, type, duration) {
+  clearTimeout(statusTimer);
+  const el = document.getElementById('cam-status');
+  el.textContent = msg;
+  el.className   = `show ${type}`;
+  if (duration) {
+    statusTimer = setTimeout(() => { el.className = ''; }, duration);
+  }
+}
+</script>
+</body>
+</html>
